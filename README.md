@@ -1,98 +1,101 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# IndoBench Backend 🇮🇩
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Sebuah alat benchmarking berbasis NestJS yang ditenagai oleh [promptfoo](https://promptfoo.dev/) untuk mengevaluasi Large Language Models (LLM) pada logika, koding, dan pengetahuan budaya Indonesia.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 🚀 Memulai (Getting Started)
 
-## Description
+### Prasyarat
+- Node.js (disarankan v22 atau lebih baru)
+- `npm` atau `pnpm`
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+### Instalasi
 
-## Project setup
+1.  **Instal Dependensi**
+    Gunakan flag berikut untuk melewati pemeriksaan *engine* yang ketat jika diperlukan:
+    ```bash
+    npm install --ignore-scripts --force
+    ```
 
-```bash
-$ npm install
+2.  **Konfigurasi Environment**
+    Buat file `.env` (salin dari `.env.example`) dan tambahkan API key Anda:
+    ```env
+    OPENAI_API_KEY=kunci_anda_di_sini
+    ANTHROPIC_API_KEY=kunci_anda_di_sini
+    ```
+
+3.  **Menjalankan Server**
+    ```bash
+    # Mode pengembangan
+    npm run start:dev
+    ```
+    Server biasanya berjalan di `http://localhost:3000`.
+
+---
+
+## ⚡ Cara Menjalankan Benchmark
+
+Untuk menjalankan benchmark, kirim request **POST** ke:
+`POST http://localhost:3000/benchmark/run`
+
+### Contoh Payload (Soal Indonesia)
+
+Salin dan tempel JSON ini ke Postman atau Insomnia.
+
+> **⚠️ PENTING:** Pastikan Anda menggunakan nama model yang **VALID** (contoh: `gpt-4o`, `claude-3-5-sonnet...`). Nama yang tidak valid akan menyebabkan benchmark *crash* tanpa output.
+
+```json
+{
+  "batchName": "IndoBench: Tes Logika, Koding & Budaya v1",
+  "providers": [
+    "openai:gpt-4o",
+    "anthropic:claude-3-5-sonnet-20240620"
+  ],
+  "judgeProviders": [
+    "openai:gpt-4o"
+  ],
+  "tests": [
+    {
+      "id": "mcq_indo_dev_01",
+      "type": "mcq",
+      "question": "Apa output dari kode JavaScript berikut?\nconsole.log(1 + '1' - 1);\n\nA. 10\nB. 1\nC. 2\nD. 11",
+      "expectedAnswer": "A"
+    },
+    {
+      "id": "mcq_indo_culture_01",
+      "type": "mcq",
+      "question": "Makanan khas Indonesia yang bahan utamanya adalah daging sapi yang dimasak lama dengan santan dan rempah-rempah hingga kering disebut...\n\nA. Soto\nB. Bakso\nC. Rendang\nD. Gado-gado",
+      "expectedAnswer": "C"
+    },
+    {
+      "id": "code_indo_01",
+      "type": "code",
+      "question": "Buatlah fungsi Python `hitung_vokal` yang menghitung jumlah huruf vokal dalam string.",
+      "rubric": "Harus case-insensitive. Menghandle string kosong."
+    },
+    {
+      "id": "essay_indo_01",
+      "type": "essay",
+      "question": "Jelaskan konsep 'Gotong Royong' dan relevansinya di era modern.",
+      "rubric": "Menjelaskan kerja sama komunal dan contoh modern (crowdfunding, open source)."
+    }
+  ]
+}
 ```
 
-## Compile and run the project
+### Dukungan Tipe Tes
+*   **`mcq`**: Pilihan Ganda. Sistem secara otomatis menyuntikkan instruksi untuk memaksa jawaban satu huruf (A, B, C, atau D).
+*   **`essay`**: Pertanyaan esai terbuka yang dinilai oleh LLM Juri (Judge).
+*   **`code`**: Tugas koding yang dinilai oleh LLM Juri berdasarkan rubrik.
 
-```bash
-# development
-$ npm run start
+---
 
-# watch mode
-$ npm run start:dev
+## 🛠 Pemecahan Masalah (Troubleshooting)
 
-# production mode
-$ npm run start:prod
-```
+| Masalah | Penyebab | Solusi |
+| :--- | :--- | :--- |
+| **"No Output" / Skor 0** | Nama model di `providers` tidak valid atau salah ketik. | Cek nama model sesuai dokumentasi resmi provider (misal: gunakan `gpt-4o` bukan `gpt-5`). |
+| **Jawaban tertukar / geser** | Masalah *concurrency* atau *mapping*. | Kami telah memperbaiki logika *mapping*. Pastikan Anda menggunakan versi terbaru `benchmark.service.ts`. |
+| **Error saat Start/Install** | Ketidakcocokan versi Node.js. | Gunakan `overrides` di `package.json` atau jalankan `npm install --force`. |
 
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## Lisensi
+[MIT](LICENSE)
