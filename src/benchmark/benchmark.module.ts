@@ -1,9 +1,19 @@
 import { Module } from '@nestjs/common';
-import { BenchmarkService } from './benchmark.service';
 import { BenchmarkController } from './benchmark.controller';
+import { BenchmarkService } from './benchmark.service';
+import { ModelFactory } from '../models/model.factory';
+import { McqEvaluator } from '../evaluation/mcq.evaluator';
+import { EssayEvaluator } from '../evaluation/essay.evaluator';
+import { JudgeService } from '../evaluation/judge.service';
 
 @Module({
-  providers: [BenchmarkService],
-  controllers: [BenchmarkController]
+  controllers: [BenchmarkController],
+  providers: [
+    BenchmarkService,
+    ModelFactory,
+    McqEvaluator,
+    EssayEvaluator,
+    JudgeService,
+  ],
 })
-export class BenchmarkModule {}
+export class BenchmarkModule { }

@@ -1,4 +1,4 @@
-import { IsString, IsArray, IsOptional, ValidateNested, IsNumber } from 'class-validator';
+import { IsString, IsArray, IsOptional, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class TestCaseDto {
@@ -6,7 +6,7 @@ export class TestCaseDto {
   id: string;
 
   @IsString()
-  type: 'mcq' | 'essay' | 'code';
+  type: 'mcq' | 'essay';
 
   @IsString()
   question: string;
@@ -18,6 +18,9 @@ export class TestCaseDto {
   @IsOptional()
   @IsString()
   rubric?: string;
+
+  @IsOptional()
+  choices?: Record<string, string>; // e.g. { A: "Bandung", B: "Jakarta" }
 }
 
 export class CreateBatchDto {
@@ -29,9 +32,8 @@ export class CreateBatchDto {
   providers: string[];
 
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  judgeProviders?: string[];
+  @IsString()
+  judgeProvider?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
