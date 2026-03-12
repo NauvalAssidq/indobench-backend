@@ -22,12 +22,6 @@ describe('BenchmarkController (e2e)', () => {
     });
 
     it('/benchmark/run (POST) - validation error (missing expectedAnswer for MCQ)', async () => {
-        // Re-implement the original service method for this test to trigger the internal validation logic 
-        // or we use the real service but mock the promptfoo call?
-        // Actually, simpler to test validation pipe here for DTO, and simple service logic unit test for the runtime checks.
-        // But user asked for "check the code". E2E is good for DTO validation check.
-
-        // Let's test DTO validation first.
         return request(app.getHttpServer())
             .post('/benchmark/run')
             .send({
@@ -37,7 +31,6 @@ describe('BenchmarkController (e2e)', () => {
                     {
                         id: 'test-1',
                         type: 'mcq',
-                        // question missing
                     }
                 ]
             })

@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { JudgeService } from './judge.service';
+import { JudgeService, JudgeResult } from './judge.service';
 import { AgentResponse } from '../validation/agent-response.schema';
 
 export interface EssayResult {
     pass: boolean;
     score: number;
     reason: string;
+    judges: JudgeResult[];
 }
 
 @Injectable()
@@ -16,19 +17,21 @@ export class EssayEvaluator {
         question: string,
         agentResponse: AgentResponse,
         rubric: string,
-        judgeProvider: string,
+        judgeProviders: string[],
     ): Promise<EssayResult> {
-        const judgeResult = await this.judgeService.judge(
-            question,
-            agentResponse.answer,
-            rubric,
-            judgeProvider,
+        const promises = judgeProviders.map(provider =>
+            this.judgeService.judge(question, agentResponse.answer, rubric, provider)
         );
+        const results = await Promise.all(promises);
+
+        const avgScore = results.reduce((sum, res) => sum + res.score, 0) / results.length;
+        const reasons = results.map(r => `[${r.provider}]: ${r.reason}`).join('\n');
 
         return {
-            pass: judgeResult.score >= 0.5,
-            score: judgeResult.score,
-            reason: judgeResult.reason,
+            pass: avgScore >= 0.5,
+            score: avgScore,
+            reason: reasons,
+            judges: results,
         };
     }
 }

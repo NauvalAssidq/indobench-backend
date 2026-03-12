@@ -5,13 +5,24 @@ import { parseJudgeResponse, JudgeResponse } from '../validation/judge-response.
 import { Logger } from '../utils/logger';
 
 export interface JudgeResult {
+    provider: string;
     score: number;
     reason: string;
+    usage: {
+        promptTokens: number;
+        completionTokens: number;
+        totalTokens: number;
+    };
 }
 
-const JUDGE_SYSTEM_PROMPT = `You are an expert evaluator assessing Indonesian language comprehension.
-Respond ONLY with a valid JSON object in this exact format:
-{"score": <number between 0 and 1>, "reason": "<brief explanation in English>"}
+const JUDGE_SYSTEM_PROMPT = `You are a STRICT, unforgiving evaluator for Indonesian comprehension.
+Grade heavily on a strict 0.0 to 1.0 decimal scale.
+- 1.0 is rare perfection, it only works on MCP.
+- Deduct points aggressively (-0.1 to -0.5) for ANY missing details, poor grammar, unnatural phrasing, or brevity.
+- 0.0 is completely wrong.
+
+Respond ONLY with a valid JSON:
+{"score": <number 0.0-1.0>, "reason": "<Why points were lost>"}
 Do not include any other text outside the JSON object.`;
 
 @Injectable()
@@ -44,7 +55,7 @@ Respond ONLY with JSON: {"score": <0-1>, "reason": "<explanation>"}
             `JudgeService:${judgeProvider}`,
         );
 
-        const parsed = parseJudgeResponse(rawResponse);
+        const parsed = parseJudgeResponse(rawResponse.text);
         if (!parsed.success) {
             this.logger.error('Judge response validation failed', {
                 judgeProvider,
@@ -54,6 +65,15 @@ Respond ONLY with JSON: {"score": <0-1>, "reason": "<explanation>"}
             throw new Error(`Judge validation failed: ${parsed.error}`);
         }
 
-        return parsed.data;
+        return {
+            provider: judgeProvider,
+            score: parsed.data.score,
+            reason: parsed.data.reason,
+            usage: {
+                promptTokens: rawResponse.usage.promptTokens,
+                completionTokens: rawResponse.usage.completionTokens,
+                totalTokens: rawResponse.usage.totalTokens,
+            }
+        };
     }
 }

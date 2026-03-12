@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { ModelAdapter } from './model.interface';
+import { ModelAdapter, ModelResponse } from './model.interface';
 
 export class GeminiAdapter implements ModelAdapter {
     private readonly client: GoogleGenAI;
@@ -11,7 +11,7 @@ export class GeminiAdapter implements ModelAdapter {
         this.client = new GoogleGenAI({ apiKey });
     }
 
-    async call(systemPrompt: string, userPrompt: string): Promise<string> {
+    async call(systemPrompt: string, userPrompt: string): Promise<ModelResponse> {
         const response = await this.client.models.generateContent({
             model: this.modelName,
             contents: userPrompt,
@@ -23,6 +23,15 @@ export class GeminiAdapter implements ModelAdapter {
 
         const text = response.text;
         if (!text) throw new Error('Gemini returned empty content');
-        return text;
+
+        const usage = response.usageMetadata;
+        return {
+            text,
+            usage: {
+                promptTokens: usage?.promptTokenCount ?? 0,
+                completionTokens: usage?.candidatesTokenCount ?? 0,
+                totalTokens: usage?.totalTokenCount ?? 0,
+            }
+        };
     }
 }

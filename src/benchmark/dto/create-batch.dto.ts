@@ -23,6 +23,14 @@ export class TestCaseDto {
   choices?: Record<string, string>; // e.g. { A: "Bandung", B: "Jakarta" }
 }
 
+export class ProviderPriceDto {
+  @IsOptional()
+  inputPerMTok?: number;
+
+  @IsOptional()
+  outputPerMTok?: number;
+}
+
 export class CreateBatchDto {
   @IsString()
   batchName: string;
@@ -32,8 +40,10 @@ export class CreateBatchDto {
   providers: string[];
 
   @IsOptional()
-  @IsString()
-  judgeProvider?: string;
+  judgeProvider?: string | string[];
+
+  @IsOptional()
+  providerPrices?: Record<string, ProviderPriceDto>;
 
   @IsArray()
   @ValidateNested({ each: true })

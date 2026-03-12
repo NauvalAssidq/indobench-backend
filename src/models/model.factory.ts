@@ -5,10 +5,7 @@ import { OpenAIAdapter } from './openai.adapter';
 import { AnthropicAdapter } from './anthropic.adapter';
 import { GeminiAdapter } from './gemini.adapter';
 
-/**
- * Resolves a provider string like "openai:gpt-4o-mini" into the correct
- * ModelAdapter instance. Throws immediately if unknown — no silent fallthrough.
- */
+
 @Injectable()
 export class ModelFactory {
     constructor(private readonly config: ConfigService) { }

@@ -41,12 +41,14 @@ export class BenchmarkService {
       testCount: dto.tests.length,
     });
 
-    const judgeProvider = dto.judgeProvider ?? 'google:gemini-1.5-flash-latest';
+    let judgeProviders: string[] = ['google:gemini-1.5-flash-latest'];
+    if (dto.judgeProvider) {
+      judgeProviders = Array.isArray(dto.judgeProvider) ? dto.judgeProvider : [dto.judgeProvider];
+    }
 
 
     const tasks: Array<{ testId: string; provider: string; promise: Promise<any> }> = [];
 
-    // Limit concurrent requests to avoid instantly hitting free-tier RPM/TPM limits
     const limit = pLimit(2);
 
     for (const test of dto.tests) {
@@ -54,60 +56,69 @@ export class BenchmarkService {
         tasks.push({
           testId: test.id,
           provider,
-          promise: limit(() => this.runSingleEval(test, provider, judgeProvider)),
+          promise: limit(() => this.runSingleEval(test, provider, judgeProviders, dto.providerPrices)),
         });
       }
     }
 
     const settled = await Promise.allSettled(tasks.map((t) => t.promise));
 
-    const rows = settled.map((result, i) => {
+    const flatRows = settled.map((result, i) => {
       const { testId, provider } = tasks[i];
-      const test = dto.tests.find((t) => t.id === testId)!;
+      if (result.status === 'fulfilled') return result.value;
 
-      if (result.status === 'fulfilled') {
-        return result.value;
-      }
-
-      // Hard failure — surface the error explicitly, never silently zero
       const errorMsg = result.reason instanceof Error ? result.reason.message : String(result.reason);
       this.logger.error('Eval cell failed', { testId, provider, error: errorMsg });
 
       return {
         testId,
-        question: test.question,
-        type: test.type,
-        expectedAnswer: test.expectedAnswer ?? null,
         provider,
         output: null,
-        pass: false,
         score: 0,
-        scorePercentage: '0.0%',
-        detail: {
-          gradingReason: errorMsg,
-          choice: null,
-          error: errorMsg,
-        },
+        detail: { reason: errorMsg, choice: null, error: errorMsg },
         metrics: { cost: 0, latencyMs: 0, tokens: { total: 0, prompt: 0, completion: 0 } },
       };
     });
 
-    const summary = this.calculateStats(rows);
-    const matrix = this.buildMatrix(rows, dto);
+    const summary = this.calculateStats(flatRows);
+
+    // Group the flat results by test so they are nested appropriately
+    const nestedResults = dto.tests.map((test) => {
+      const testResults = flatRows
+        .filter(r => r.testId === test.id)
+        .map(r => ({
+          providerName: r.provider,
+          output: r.output,
+          score: r.score,
+          choice: r.detail?.choice ?? null,
+          reason: r.detail?.gradingReason ?? r.detail?.reason ?? null,
+          error: r.detail?.error ?? null,
+          metrics: r.metrics
+        }));
+
+      return {
+        testId: test.id,
+        type: test.type,
+        question: test.question,
+        expectedAnswer: test.expectedAnswer ?? null,
+        rubric: test.rubric ?? null,
+        providers: testResults
+      };
+    });
 
     return {
       batchName: dto.batchName,
       timestamp: new Date().toISOString(),
       summary,
-      matrix,
-      results: rows,
+      results: nestedResults,
     };
   }
 
   private async runSingleEval(
     test: TestCaseDto,
     providerString: string,
-    judgeProvider: string,
+    judgeProviders: string[],
+    providerPrices?: Record<string, { inputPerMTok?: number; outputPerMTok?: number }>,
   ): Promise<any> {
     const start = Date.now();
 
@@ -121,14 +132,14 @@ export class BenchmarkService {
 
     const latencyMs = Date.now() - start;
 
-    const parsed = parseAgentResponse(rawOutput);
+    const parsed = parseAgentResponse(rawOutput.text);
     if (!parsed.success) {
-      throw new Error(`SCHEMA_VALIDATION_FAILED: ${parsed.error} | raw: ${rawOutput.slice(0, 200)}`);
+      throw new Error(`SCHEMA_VALIDATION_FAILED: ${parsed.error} | raw: ${rawOutput.text.slice(0, 200)}`);
     }
 
     const agentResponse = parsed.data;
 
-    let evalResult: { pass: boolean; score: number; reason: string; choice?: string | null };
+    let evalResult: { pass: boolean; score: number; reason: string; choice?: string | null; judges?: any[] };
 
     if (test.type === 'mcq') {
       if (!test.expectedAnswer) {
@@ -138,77 +149,59 @@ export class BenchmarkService {
       evalResult = { pass: mcq.pass, score: mcq.score, reason: mcq.reason, choice: mcq.choice };
     } else {
       const rubric = test.rubric ?? 'Score 0-1. Does the answer correctly address the question in Indonesian?';
-      const essay = await this.essayEvaluator.evaluate(test.question, agentResponse, rubric, judgeProvider);
-      evalResult = { pass: essay.pass, score: essay.score, reason: essay.reason, choice: null };
+      const essay = await this.essayEvaluator.evaluate(test.question, agentResponse, rubric, judgeProviders);
+      evalResult = { pass: essay.pass, score: essay.score, reason: essay.reason, choice: null, judges: essay.judges };
+    }
+
+    // Cost Calculation Logic
+    let cost = 0;
+    const usage = rawOutput.usage;
+    const pricing = providerPrices?.[providerString];
+
+    let totalPromptTokens = usage.promptTokens;
+    let totalCompletionTokens = usage.completionTokens;
+    let totalTokens = usage.totalTokens;
+
+    if (pricing) {
+      const inputCost = (usage.promptTokens / 1_000_000) * (pricing.inputPerMTok ?? 0);
+      const outputCost = (usage.completionTokens / 1_000_000) * (pricing.outputPerMTok ?? 0);
+      cost += inputCost + outputCost;
+    }
+
+    if (test.type === 'essay' && evalResult.judges) {
+      for (const judge of evalResult.judges) {
+        const judgePricing = providerPrices?.[judge.provider];
+        if (judgePricing) {
+          const jInputCost = (judge.usage.promptTokens / 1_000_000) * (judgePricing.inputPerMTok ?? 0);
+          const jOutputCost = (judge.usage.completionTokens / 1_000_000) * (judgePricing.outputPerMTok ?? 0);
+          cost += jInputCost + jOutputCost;
+        }
+        totalPromptTokens += judge.usage.promptTokens;
+        totalCompletionTokens += judge.usage.completionTokens;
+        totalTokens += judge.usage.totalTokens;
+      }
     }
 
     return {
       testId: test.id,
-      question: test.question,
-      type: test.type,
-      expectedAnswer: test.expectedAnswer ?? null,
       provider: providerString,
       output: agentResponse.answer,
-      pass: evalResult.pass,
       score: evalResult.score,
-      scorePercentage: (evalResult.score * 100).toFixed(1) + '%',
       detail: {
         gradingReason: evalResult.reason,
         choice: evalResult.choice ?? null,
         error: null,
       },
       metrics: {
-        cost: 0,
+        cost,
         latencyMs,
-        tokens: { total: 0, prompt: 0, completion: 0 },
+        tokens: {
+          total: totalTokens,
+          prompt: totalPromptTokens,
+          completion: totalCompletionTokens
+        },
       },
     };
-  }
-
-  // ---------------------------------------------------------------------------
-  // Matrix: tests (rows) × providers (columns)
-  // ---------------------------------------------------------------------------
-
-  private buildMatrix(rows: any[], dto: CreateBatchDto) {
-    const providers = [...dto.providers];
-
-    const cellMap: Record<string, Record<string, any>> = {};
-    for (const row of rows) {
-      if (!cellMap[row.testId]) cellMap[row.testId] = {};
-      cellMap[row.testId][row.provider] = {
-        pass: row.pass,
-        score: row.score,
-        scorePercentage: row.scorePercentage,
-        output: row.output,
-        choice: row.detail.choice,
-        latencyMs: row.metrics.latencyMs,
-        error: row.detail.error,
-      };
-    }
-
-    const matrixRows = dto.tests.map((test) => {
-      const providerCells: Record<string, any> = {};
-      for (const provider of providers) {
-        providerCells[provider] = cellMap[test.id]?.[provider] ?? {
-          pass: null,
-          score: null,
-          scorePercentage: null,
-          output: null,
-          choice: null,
-          latencyMs: null,
-          error: 'Result missing',
-        };
-      }
-      return {
-        testId: test.id,
-        type: test.type,
-        question: test.question,
-        expectedAnswer: test.expectedAnswer ?? null,
-        providers: providerCells,
-      };
-    });
-
-    return { providers, rows: matrixRows };
   }
 
   // ---------------------------------------------------------------------------
@@ -271,6 +264,7 @@ export class BenchmarkService {
       providerStats,
       winners: {
         mostEfficient: cheapest.provider,
+        cheapest: cheapest.provider,
         fastest: fastest.provider,
         highestQuality: smartest.provider,
       },
