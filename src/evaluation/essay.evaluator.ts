@@ -19,10 +19,11 @@ export class EssayEvaluator {
         rubric: string,
         judgeProviders: string[],
     ): Promise<EssayResult> {
-        const promises = judgeProviders.map(provider =>
-            this.judgeService.judge(question, agentResponse.answer, rubric, provider)
-        );
-        const results = await Promise.all(promises);
+        const results: JudgeResult[] = [];
+        for (const provider of judgeProviders) {
+            const result = await this.judgeService.judge(question, agentResponse.answer, rubric, provider);
+            results.push(result);
+        }
 
         const avgScore = results.reduce((sum, res) => sum + res.score, 0) / results.length;
         const reasons = results.map(r => `[${r.provider}]: ${r.reason}`).join('\n');

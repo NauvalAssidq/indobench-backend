@@ -49,7 +49,7 @@ export class BenchmarkService {
 
     const tasks: Array<{ testId: string; provider: string; promise: Promise<any> }> = [];
 
-    const limit = pLimit(2);
+    const limit = pLimit(1);
 
     for (const test of dto.tests) {
       for (const provider of dto.providers) {
@@ -75,6 +75,7 @@ export class BenchmarkService {
         provider,
         output: null,
         score: 0,
+        pass: false,
         detail: { reason: errorMsg, choice: null, error: errorMsg },
         metrics: { cost: 0, latencyMs: 0, tokens: { total: 0, prompt: 0, completion: 0 } },
       };
@@ -82,7 +83,6 @@ export class BenchmarkService {
 
     const summary = this.calculateStats(flatRows);
 
-    // Group the flat results by test so they are nested appropriately
     const nestedResults = dto.tests.map((test) => {
       const testResults = flatRows
         .filter(r => r.testId === test.id)
@@ -90,6 +90,7 @@ export class BenchmarkService {
           providerName: r.provider,
           output: r.output,
           score: r.score,
+          pass: r.pass ?? false,
           choice: r.detail?.choice ?? null,
           reason: r.detail?.gradingReason ?? r.detail?.reason ?? null,
           error: r.detail?.error ?? null,
@@ -187,6 +188,7 @@ export class BenchmarkService {
       provider: providerString,
       output: agentResponse.answer,
       score: evalResult.score,
+      pass: evalResult.pass,
       detail: {
         gradingReason: evalResult.reason,
         choice: evalResult.choice ?? null,
