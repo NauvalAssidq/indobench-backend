@@ -1,13 +1,8 @@
-/**
- * Calls `fn` with a hard timeout and up to `maxRetries` retries.
- * On every failure it logs the attempt, waits 1s, then retries.
- * Throws a typed Error on final failure.
- */
 export async function callWithRetry<T>(
     fn: () => Promise<T>,
     context: string,
     maxRetries = 3,
-    timeoutMs = 30_000,
+    timeoutMs = 180_000,
 ): Promise<T> {
     let lastError: Error = new Error('Unknown error');
 
