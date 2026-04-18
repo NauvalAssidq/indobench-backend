@@ -8,17 +8,34 @@ import { Logger } from '../utils/logger';
 import { CreateBatchDto, TestCaseDto } from './dto/create-batch.dto';
 import pLimit from 'p-limit';
 
-const MCQ_SYSTEM_PROMPT = `You are taking a multiple choice test in Indonesian.
-You MUST respond with ONLY a valid JSON object in this exact format:
-{"answer": "<your explanation or the letter>", "choice": "<A, B, C, or D>"}
-The "choice" field MUST be exactly one of: A, B, C, D.
-Do not include any text outside the JSON object.`;
+const MCQ_SYSTEM_PROMPT = `You are a professional exam-taker for Indonesian subjects.
+TASK: Analyze the question and select the most accurate option.
+
+OUTPUT FORMAT:
+You must return a JSON object ONLY. No prose, no conversational filler.
+JSON Schema:
+{
+    "thinking": "Your step-by-step reasoning or derivations (optional but recommended for math)",
+    "answer": "A very brief explanation of why the choice is correct",
+    "choice": "A/B/C/D/E"
+}
+
+CONSTRAINTS:
+1. The "choice" field must be a single uppercase letter.
+2. Put all reasoning inside the "thinking" field, not outside the JSON.
+3. Your response MUST start EXACTLY with the '{' character. No pretext, no markdown code blocks, no explanations outside the JSON.
+4. Shortest answer possible.`;
 
 const ESSAY_SYSTEM_PROMPT = `You are answering an Indonesian language comprehension question.
 You MUST respond with ONLY a valid JSON object in this exact format:
-{"answer": "<your full answer in Indonesian>", "choice": null}
-The "choice" field MUST be null for essay questions.
-Do not include any text outside the JSON object.`;
+{"thinking": "Your step-by-step reasoning or derivations (optional)", "answer": "<your full answer in Indonesian>", "choice": null}
+
+CONSTRAINTS:
+1. Keep the "answer" concise (maximum 3 paragraphs).
+2. Put all reasoning inside the "thinking" field, not outside the JSON.
+3. Ensure the JSON string is properly closed.
+4. The "choice" field MUST be null.
+5. Your response MUST start EXACTLY with the '{' character. No pretext, no markdown code blocks, no text outside the JSON.`;
 
 @Injectable()
 export class BenchmarkService {
@@ -135,7 +152,8 @@ export class BenchmarkService {
 
     const parsed = parseAgentResponse(rawOutput.text);
     if (!parsed.success) {
-      throw new Error(`SCHEMA_VALIDATION_FAILED: ${parsed.error} | raw: ${rawOutput.text.slice(0, 200)}`);
+      this.logger.error(`Validation failed. Raw text:\n${rawOutput.text}`);
+      throw new Error(`SCHEMA_VALIDATION_FAILED: ${parsed.error} | raw: ${rawOutput.text.slice(0, 500)}...`);
     }
 
     const agentResponse = parsed.data;

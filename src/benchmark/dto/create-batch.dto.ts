@@ -20,7 +20,7 @@ export class TestCaseDto {
   rubric?: string;
 
   @IsOptional()
-  choices?: Record<string, string>; // e.g. { A: "Bandung", B: "Jakarta" }
+  choices?: Record<string, string>;
 }
 
 export class ProviderPriceDto {

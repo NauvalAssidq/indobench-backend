@@ -14,7 +14,7 @@ export class AnthropicAdapter implements ModelAdapter {
     async call(systemPrompt: string, userPrompt: string): Promise<ModelResponse> {
         const response = await this.client.messages.create({
             model: this.modelName,
-            max_tokens: 1024,
+            max_tokens: 8192,
             system: systemPrompt,
             messages: [{ role: 'user', content: userPrompt }],
         });

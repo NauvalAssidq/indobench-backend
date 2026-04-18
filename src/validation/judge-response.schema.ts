@@ -15,10 +15,14 @@ export function parseJudgeResponse(raw: string):
     | { success: true; data: JudgeResponse }
     | { success: false; error: string } {
     try {
-        const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+        let cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+        const startIdx = cleaned.indexOf('{');
+        const endIdx = cleaned.lastIndexOf('}');
+        if (startIdx !== -1 && endIdx !== -1 && endIdx >= startIdx) {
+            cleaned = cleaned.substring(startIdx, endIdx + 1);
+        }
         const parsed = JSON.parse(cleaned);
 
-        // Normalise score: if judge returns 0-5 scale, convert to 0-1
         if (typeof parsed.score === 'number' && parsed.score > 1) {
             parsed.score = parsed.score / 5;
         }
