@@ -7,6 +7,8 @@ import { parseAgentResponse } from '../validation/agent-response.schema';
 import { Logger } from '../utils/logger';
 import { CreateBatchDto, TestCaseDto } from './dto/create-batch.dto';
 import pLimit from 'p-limit';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 const MCQ_SYSTEM_PROMPT = `You are a professional exam-taker for Indonesian subjects.
 TASK: Analyze the question and select the most accurate option.
@@ -36,6 +38,17 @@ CONSTRAINTS:
 3. Ensure the JSON string is properly closed.
 4. The "choice" field MUST be null.
 5. Your response MUST start EXACTLY with the '{' character. No pretext, no markdown code blocks, no text outside the JSON.`;
+
+const CODE_SYSTEM_PROMPT = `You are a professional software engineer.
+You MUST respond with ONLY a valid JSON object in this exact format:
+{"thinking": "Your step-by-step reasoning or derivations (optional)", "answer": "<your full code here>", "choice": null}
+
+CONSTRAINTS:
+1. Provide the code inside the "answer" field. It can contain newlines.
+2. Put all reasoning inside the "thinking" field, not outside the JSON.
+3. Keep it plain text or markdown within the JSON string.
+4. The "choice" field MUST be null.
+5. Your response MUST start EXACTLY with the '{' character. No pretext, no text outside the JSON.`;
 
 @Injectable()
 export class BenchmarkService {
@@ -73,7 +86,7 @@ export class BenchmarkService {
         tasks.push({
           testId: test.id,
           provider,
-          promise: limit(() => this.runSingleEval(test, provider, judgeProviders, dto.providerPrices)),
+          promise: limit(() => this.runSingleEval(dto.batchName, test, provider, judgeProviders, dto.providerPrices)),
         });
       }
     }
@@ -133,6 +146,7 @@ export class BenchmarkService {
   }
 
   private async runSingleEval(
+    batchName: string,
     test: TestCaseDto,
     providerString: string,
     judgeProviders: string[],
@@ -141,7 +155,7 @@ export class BenchmarkService {
     const start = Date.now();
 
     const adapter = this.modelFactory.resolve(providerString);
-    const systemPrompt = test.type === 'mcq' ? MCQ_SYSTEM_PROMPT : ESSAY_SYSTEM_PROMPT;
+    const systemPrompt = test.type === 'mcq' ? MCQ_SYSTEM_PROMPT : (test.type === 'code' ? CODE_SYSTEM_PROMPT : ESSAY_SYSTEM_PROMPT);
 
     const rawOutput = await callWithRetry(
       () => adapter.call(systemPrompt, test.question),
@@ -157,6 +171,20 @@ export class BenchmarkService {
     }
 
     const agentResponse = parsed.data;
+
+    if (test.type === 'code') {
+      try {
+        const outDir = path.join(process.cwd(), 'outputs', batchName);
+        await fs.mkdir(outDir, { recursive: true });
+        const safeProvider = providerString.replace(/[:\/\\<>|?*]/g, '-');
+        const ext = test.fileExtension?.replace(/^\./, '') || 'txt';
+        const filename = `${test.id}_${safeProvider}.${ext}`;
+        const outPath = path.join(outDir, filename);
+        await fs.writeFile(outPath, agentResponse.answer, 'utf8');
+      } catch (err: any) {
+        this.logger.error('Failed to write code output to disk', { error: err.message });
+      }
+    }
 
     let evalResult: { pass: boolean; score: number; reason: string; choice?: string | null; judges?: any[] };
 

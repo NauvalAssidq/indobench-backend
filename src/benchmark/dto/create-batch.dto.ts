@@ -6,7 +6,7 @@ export class TestCaseDto {
   id: string;
 
   @IsString()
-  type: 'mcq' | 'essay';
+  type: 'mcq' | 'essay' | 'code';
 
   @IsString()
   question: string;
@@ -21,6 +21,10 @@ export class TestCaseDto {
 
   @IsOptional()
   choices?: Record<string, string>;
+
+  @IsOptional()
+  @IsString()
+  fileExtension?: string;
 }
 
 export class ProviderPriceDto {
